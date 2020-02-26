@@ -15,9 +15,11 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 class EmployeeController {
 
     private final EmployeeRepository repository;
+    private final EmployeeResourceAssembler assembler;
 
-    EmployeeController(EmployeeRepository repository) {
+    EmployeeController(EmployeeRepository repository, EmployeeResourceAssembler assembler) {
         this.repository = repository;
+        this.assembler = assembler;
     }
 
     // Aggregate root
@@ -26,13 +28,21 @@ class EmployeeController {
     CollectionModel<EntityModel<Employee>> all() {
 
         List<EntityModel<Employee>> employees = repository.findAll().stream()
-                .map(employee -> new EntityModel<>(employee,
-                        linkTo(methodOn(EmployeeController.class).one(employee.getId())).withSelfRel(),
-                        linkTo(methodOn(EmployeeController.class).all()).withRel("employees")))
+                .map(assembler::toModel)
                 .collect(Collectors.toList());
+//                .map(employee -> new EntityModel<>(employee,
+//                        linkTo(methodOn(EmployeeController.class).one(employee.getId())).withSelfRel(),
+//                        linkTo(methodOn(EmployeeController.class).all()).withRel("employees")))
+//                .collect(Collectors.toList());
 
         return new CollectionModel<>(employees,
                 linkTo(methodOn(EmployeeController.class).all()).withSelfRel());
+    }
+
+    // RPC - restless way
+    @GetMapping("/rpc/employees")
+    List<Employee> allRPC() {
+        return repository.findAll();
     }
 
     @PostMapping("/employees")
@@ -48,9 +58,18 @@ class EmployeeController {
         Employee employee = repository.findById(id)
                 .orElseThrow(() -> new EmployeeNotFoundException(id));
 
-        return new EntityModel<>(employee,
-                linkTo(methodOn(EmployeeController.class).one(id)).withSelfRel(),
-                linkTo(methodOn(EmployeeController.class).all()).withRel("employees"));
+        return assembler.toModel(employee);
+//        return new EntityModel<>(employee,
+//                linkTo(methodOn(EmployeeController.class).one(id)).withSelfRel(),
+//                linkTo(methodOn(EmployeeController.class).all()).withRel("employees"));
+    }
+
+    // RPC - restless way
+    @GetMapping("/rpc/employees/{id}")
+    Employee oneRPC(@PathVariable Long id) {
+
+        return repository.findById(id)
+                .orElseThrow(() -> new EmployeeNotFoundException(id));
     }
 
     @PutMapping("/employees/{id}")
